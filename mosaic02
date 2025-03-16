@@ -4,66 +4,123 @@ import cv2
 import csv
 import random
 
-# モザイクの粗さ設定
-mosaic = 5
-# グレーの境界値設定
-black_border = 0
-white_border = 255
-# 入出力設定
-input_file = './mosaic_test/test01.jpg'
-output_file = './mosaic_test/test01_mosaic.jpg'
+# --------------------------------------------
+# 概要　：元画像情報取得
+# 引数　：なし
+# 戻り値：image_array　元画像情報（リスト）
+#         width　元画像サイズ（幅）
+#         height　元画像サイズ（高さ）
+# --------------------------------------------
+def import_img():
+    # 画像データの読み込み
+    img = Image.open(input_img)
 
-# 画像データの読み込み
-img = Image.open(input_file)
+    # グレースケール化
+    img_gray = img.convert("L")
+    # 画像を保存する
+    print(img_gray.getpixel((99, 99)))
 
-# グレースケール化
-img_gray = img.convert("L")
-# 画像を保存する
-print(img_gray.getpixel((99, 99)))
+    # 画像のサイズ(幅[px] x 高さ[px])を取得し、それぞれを変数に代入
+    width, height = img.size
+    # print(width, height)
 
-# 画像のサイズ(幅[px] x 高さ[px])を取得し、それぞれを変数に代入
-width, height = img.size
-print(width, height)
+    # 元画像用の空のリスト作成
+    image_array = np.empty((height, width), dtype = int)
+    # 元画像情報をリストとして取得
+    for h in range(height):
+        for w in range(width):
+            image_array[h][w] = img_gray.getpixel((w, h))
+    # print(image_array)
 
-quotient_h = height // mosaic
-quotient_w = width // mosaic
+    return image_array, width, height
 
-image_array = np.empty((height, width), dtype = int)
-
-for h in range(height):
-    for w in range(width):
-        image_array[h][w] = img_gray.getpixel((w, h))
-
-print(image_array)
-
-def make_mosaic(h, w):
+# --------------------------------------------
+# 概要　：モザイク1pxの色決定
+# 引数　：image_array　元画像情報（リスト）
+#         h　 
+#         w
+#         mosaic_size　モザイク1辺のサイズ
+#         black_border　黒塗り基準値
+#         white_border　白塗り基準値
+# 戻り値：モザイク1pxの色
+# --------------------------------------------
+def make_mosaic_sub01(image_array, w, h, mosaic_size, black_border, white_border):
     gray_lebel = 0
-    for m1 in range(mosaic):
-        for m2 in range(mosaic):
-            gray_lebel += image_array[h * mosaic + m1][w * mosaic + m2]
+    for m1 in range(mosaic_size):
+        for m2 in range(mosaic_size):
+            gray_lebel += image_array[h * mosaic_size + m1][w * mosaic_size + m2]
 
-    if gray_lebel / (mosaic * mosaic) <= black_border:
+    if gray_lebel / (mosaic_size * mosaic_size) <= black_border:
         return 0
-    elif gray_lebel / (mosaic * mosaic) >= white_border:
+    elif gray_lebel / (mosaic_size * mosaic_size) >= white_border:
         return 255
     else:
         rnd = random.randint(1, 255)
-        if rnd <= gray_lebel / (mosaic * mosaic):
+        if rnd <= gray_lebel / (mosaic_size * mosaic_size):
             return 255
         else:
             return 0
 
-mosaic_array = np.empty((quotient_h, quotient_w), dtype = int)
-for h in range(quotient_h):
-    for w in range(quotient_w):
-        mosaic_array[h][w] = make_mosaic(h, w)
+# --------------------------------------------
+# 概要　：モザイク作成（二値化）
+# 引数　：image_array　元画像情報（リスト）
+#         width　元画像サイズ（幅）
+#         height　元画像サイズ（高さ）
+#         mosaic_size　モザイク1辺のサイズ
+#         black_border　黒塗り基準値
+#         white_border　白塗り基準値
+# 戻り値：mosaic_array　モザイク画像のリスト
+# --------------------------------------------
+def make_mosaic(image_array, width, height,  
+                mosaic_size, black_border, white_border):
 
-print(mosaic_array)
+    # モザイクの数を設定
+    mosaic_h = height // mosaic_size
+    mosaic_w = width // mosaic_size
 
-Image.fromarray(np.uint8(mosaic_array)).save(output_file)
+    # モザイク化
+    mosaic_array = np.empty((mosaic_h, mosaic_w), dtype = int)
+    for h in range(mosaic_h):
+        for w in range(mosaic_w):
+            # モザイク1pxの色決定
+            mosaic_array[h][w] = make_mosaic_sub01(image_array, w, h, 
+                                                   mosaic_size, 
+                                                   black_border, 
+                                                   white_border)
 
+    # print(mosaic_array)
 
-with open('./mosaic_test/mosaic_picture.csv', 'wt') as f:
-    writer = csv.writer(f)
-    writer.writerows(mosaic_array)
+    return mosaic_array
+
+# --------------------------------------------
+# 概要　：出力
+# 引数　：mosaic_array　モザイク画像のリスト
+#         output_img　画像出力先（フルパス）
+#         output_csv　CSV出力先（フルパス）
+# 戻り値：なし
+# --------------------------------------------
+def output(mosaic_array, output_img, output_csv):
+    # 画像出力
+    Image.fromarray(np.uint8(mosaic_array)).save(output_img)
+
+    # CSV出力
+    with open(output_csv, 'wt') as f:
+        writer = csv.writer(f)
+        writer.writerows(mosaic_array)
     
+if __name__ == '__main__':
+    # モザイクの粗さ設定
+    mosaic_size = 10
+    # グレーの境界値設定
+    # 0 <= black_border < white_border <= 255 となる整数
+    black_border = 0
+    white_border = 255
+    # 入出力設定
+    input_img = ''
+    output_img = ''
+    output_csv = ''
+
+    original_img = import_img()
+    mosaic = make_mosaic(original_img[0], original_img[1], original_img[2], 
+                         mosaic_size, black_border, white_border)
+    out = output(mosaic, output_img, output_csv)
